@@ -155,6 +155,23 @@ end
 #
 #  - Available at http://arxiv.org/abs/0907.4010
 
+# cb and fb (close and far bounds) extend lb and ub to be sign-agnostic.
+
+@inline function _randnt_check_helper(cb, span)
+    return span > 2.0 / (cb + sqrt(cb^2 + 4.0)) * exp((cb^2 - cb * sqrt(cb^2 + 4.0)) / 4.0)
+end
+
+@inline function _randnt_rejection_helper(rng, cb, fb)
+    a = (cb + sqrt(cb^2 + 4.0))/2.0
+    while true
+        r = rand(rng, Exponential(1.0 / a)) + cb
+        u = rand(rng)
+        if u < exp(-0.5 * (r - a)^2) && r < fb
+            return r
+        end
+    end
+end
+
 function randnt(rng::AbstractRNG, lb::Float64, ub::Float64, tp::Float64)
     local r::Float64
     if tp > 0.3   # has considerable chance of falling in [lb, ub]
@@ -166,36 +183,24 @@ function randnt(rng::AbstractRNG, lb::Float64, ub::Float64, tp::Float64)
 
     else
         span = ub - lb
-        if lb > 0 && span > 2.0 / (lb + sqrt(lb^2 + 4.0)) * exp((lb^2 - lb * sqrt(lb^2 + 4.0)) / 4.0)
-            a = (lb + sqrt(lb^2 + 4.0))/2.0
-            while true
-                r = rand(rng, Exponential(1.0 / a)) + lb
-                u = rand(rng)
-                if u < exp(-0.5 * (r - a)^2) && r < ub
-                    return r
-                end
-            end
-        elseif ub < 0 && ub - lb > 2.0 / (-ub + sqrt(ub^2 + 4.0)) * exp((ub^2 + ub * sqrt(ub^2 + 4.0)) / 4.0)
-            a = (-ub + sqrt(ub^2 + 4.0)) / 2.0
-            while true
-                r = rand(rng, Exponential(1.0 / a)) - ub
-                u = rand(rng)
-                if u < exp(-0.5 * (r - a)^2) && r < -lb
-                    return -r
-                end
-            end
+
+        if lb > 0 && _randnt_check_helper(lb, span)
+            return _randnt_rejection_helper(rng, lb, ub)
+        elseif ub < 0 && _randnt_check_helper(-ub, span)
+            return -_randnt_rejection_helper(rng, -ub, -lb)
         else
             while true
                 r = lb + rand(rng) * (ub - lb)
                 u = rand(rng)
                 if lb > 0
-                    rho = exp((lb^2 - r^2) * 0.5)
+                    cb = lb
                 elseif ub < 0
-                    rho = exp((ub^2 - r^2) * 0.5)
+                    cb = ub
                 else
-                    rho = exp(-r^2 * 0.5)
+                    cb = 0
                 end
-                if u < rho
+
+                if u < exp((cb^2 - r^2) * 0.5)
                     return r
                 end
             end
