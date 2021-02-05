@@ -11,12 +11,12 @@ Distributions.jl
 A Julia package for probability distributions and associated functions. Particularly, *Distributions* implements:
 
 * Moments (e.g mean, variance, skewness, and kurtosis), entropy, and other properties
-* Probability density/mass functions (pdf) and their logarithm (logpdf)
+* Probability density/mass functions (pdf) and their logarithms (logpdf)
 * Moment generating functions and characteristic functions
-* Sampling from population or from a distribution
+* Sampling from populations and distributions
 * Maximum likelihood estimation
 
-**Note:** The functionalities related to conjugate priors have been moved to the [ConjugatePriors package](https://github.com/JuliaStats/ConjugatePriors.jl).
+**Note:** Functionalities related to conjugate priors have been moved to the [ConjugatePriors package](https://github.com/JuliaStats/ConjugatePriors.jl).
 
 
 ## Resources
@@ -32,7 +32,7 @@ Also, for casual conversation and quick questions, there are the channels `#help
 
 ### Reporting issues
 
-* If you need help or an explanation how to use *Distributions* ask in the forum (https://discourse.julialang.org) or, for informal questions, visit the chat (https://julialang.slack.com).
+* If you need help or an explanation on how to use *Distributions*, ask in the forum (https://discourse.julialang.org) or, for informal questions, visit the chat (https://julialang.slack.com).
 
 If you have a bug linked with *Distributions*, check that it has
 not been reported yet on the issues of the repository.
