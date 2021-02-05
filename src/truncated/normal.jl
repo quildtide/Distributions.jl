@@ -188,7 +188,7 @@ function randnt(rng::AbstractRNG, lb::Float64, ub::Float64, tp::Float64)
                 r = rand(rng, Exponential(1.0 / a)) + cb
                 u = rand(rng)
                 if u < exp(-0.5 * (r - a)^2) && r < fb
-                    return sign(cb) * r 
+                    return sign(lb) * r 
                 end
             end
             
