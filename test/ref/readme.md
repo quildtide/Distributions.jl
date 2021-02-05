@@ -1,6 +1,6 @@
 # R References for Distributions.jl
 
-We relies on the distribution-related functions provided by
+We rely on the distribution-related functions provided by
 [R](https://www.r-project.org) and a number of packages in
 [CRAN](https://cran.r-project.org) to generate references
 for verifying the correctness of our implementations.
@@ -26,9 +26,9 @@ in addition to the R language itself:
 
 ## Usage
 
-All reference classes are in ``test/ref/continuous`` and ``test/ref/discrete``. One R file for each distribution class.
+All reference classes are in ``test/ref/continuous`` and ``test/ref/discrete``. There is one R file for each distribution class.
 
-The test entries are listed in ``test/ref/continuous_test.lst`` and ``test/ref/discrete_test.lst``. Each entry is a Julia statement for constructing a distribution. The entries can be commented out using ``#``.
+Test entries are listed in ``test/ref/continuous_test.lst`` and ``test/ref/discrete_test.lst``. Each entry is a Julia statement for constructing a distribution. The entries can be commented out using ``#``.
 
 One can enter ``Rscript gendref.R`` **within the directory** ``test/ref`` to generate the reference data files: ``test/ref/continuous_test.ref.json`` and ``test/ref/discrete_test.ref.json``.
 
@@ -39,7 +39,7 @@ The testing script ``test/univariate.jl`` loads these reference data files to ve
 ## Reference Classes
 
 Each reference distribution class is implemented as an
-[R6 class](https://cran.r-project.org/web/packages/R6/vignettes/Introduction.html),
+[R6 class](https://CRAN.R-project.org/package=R6),
 and provides a uniform interface described as follows:
 
 Let ``D`` be the reference class, and ``d`` be an reference object:
@@ -63,7 +63,7 @@ Let ``D`` be the reference class, and ``d`` be an reference object:
 
 ### Example
 
-Here is an example for ``Normal`` distribution.
+Here is an example for the ``Normal`` distribution.
 
 ```r
 Normal <- R6Class("Normal",
