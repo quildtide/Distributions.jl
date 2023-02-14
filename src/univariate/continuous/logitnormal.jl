@@ -26,12 +26,12 @@ where the logit-Function is
 ```
 
 ```julia
-LogitNormal()          # Logit-normal distribution with zero logit-mean and unit scale
-LogitNormal(mu)        # Logit-normal distribution with logit-mean mu and unit scale
-LogitNormal(mu, sig)   # Logit-normal distribution with logit-mean mu and scale sig
+LogitNormal()        # Logit-normal distribution with zero logit-mean and unit scale
+LogitNormal(μ)       # Logit-normal distribution with logit-mean μ and unit scale
+LogitNormal(μ, σ)    # Logit-normal distribution with logit-mean μ and scale σ
 
-params(d)            # Get the parameters, i.e. (mu, sig)
-median(d)            # Get the median, i.e. logistic(mu)
+params(d)            # Get the parameters, i.e. (μ, σ)
+median(d)            # Get the median, i.e. logistic(μ)
 ```
 
 The following properties have no analytical solution but numerical
@@ -58,15 +58,14 @@ struct LogitNormal{T<:Real} <: ContinuousUnivariateDistribution
     LogitNormal{T}(μ::T, σ::T) where {T} = new{T}(μ, σ)
 end
 
-function LogitNormal(μ::T, σ::T; check_args=true) where {T <: Real}
-    check_args && @check_args(LogitNormal, σ > zero(σ))
+function LogitNormal(μ::T, σ::T; check_args::Bool=true) where {T <: Real}
+    @check_args LogitNormal (σ, σ > zero(σ))
     return LogitNormal{T}(μ, σ)
 end
 
-LogitNormal(μ::Real, σ::Real) = LogitNormal(promote(μ, σ)...)
-LogitNormal(μ::Integer, σ::Integer) = LogitNormal(float(μ), float(σ))
-LogitNormal(μ::T) where {T} = LogitNormal(μ, one(T))
-LogitNormal() = LogitNormal(0.0, 1.0, check_args=false)
+LogitNormal(μ::Real, σ::Real; check_args::Bool=true) = LogitNormal(promote(μ, σ)...; check_args=check_args)
+LogitNormal(μ::Integer, σ::Integer; check_args::Bool=true) = LogitNormal(float(μ), float(σ); check_args=check_args)
+LogitNormal(μ::Real=0.0) = LogitNormal(μ, one(μ); check_args=false)
 
 # minimum and maximum not defined for logitnormal
 # but see https://github.com/JuliaStats/Distributions.jl/pull/457
@@ -77,8 +76,10 @@ LogitNormal() = LogitNormal(0.0, 1.0, check_args=false)
 #### Conversions
 convert(::Type{LogitNormal{T}}, μ::S, σ::S) where
   {T <: Real, S <: Real} = LogitNormal(T(μ), T(σ))
-convert(::Type{LogitNormal{T}}, d::LogitNormal{S}) where
-  {T <: Real, S <: Real} = LogitNormal(T(d.μ), T(d.σ), check_args=false)
+function Base.convert(::Type{LogitNormal{T}}, d::LogitNormal) where {T<:Real}
+    LogitNormal{T}(T(d.μ), T(d.σ))
+end
+Base.convert(::Type{LogitNormal{T}}, d::LogitNormal{T}) where {T<:Real} = d
 
 #### Parameters
 
@@ -102,7 +103,13 @@ scale(d::LogitNormal) = d.σ
 
 median(d::LogitNormal) = logistic(d.μ)
 
-#### Evalution
+function kldivergence(p::LogitNormal, q::LogitNormal)
+    pn = Normal{partype(p)}(p.μ, p.σ)
+    qn = Normal{partype(q)}(q.μ, q.σ)
+    return kldivergence(pn, qn)
+end
+
+#### Evaluation
 
 #TODO check pd and logpdf
 function pdf(d::LogitNormal{T}, x::Real) where T<:Real

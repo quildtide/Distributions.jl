@@ -78,6 +78,13 @@ function verify_and_test(D::Union{Type,Function}, d::UnivariateDistribution, dct
         @test typeof(D(int_pars...)) == typeof(d)
     end
 
+    # conversions
+    if D isa Type && !isconcretetype(D)
+        @test convert(D{partype(d)}, d) === d
+        d32 = convert(D{Float32}, d)
+        @test d32 isa D{Float32}
+    end
+
     # verify properties (params & stats)
     pdct = dct["properties"]
     for (fname, val) in pdct
@@ -120,13 +127,13 @@ function verify_and_test(D::Union{Type,Function}, d::UnivariateDistribution, dct
 
     try
         m = mgf(d,0.0)
-        @test m == 1.0
+        @test m ≈ 1.0
     catch e
         isa(e, MethodError) || throw(e)
     end
     try
         c = cf(d,0.0)
-        @test c == 1.0
+        @test c ≈ 1.0
         # test some extra values: should all be well-defined
         for t in (0.1,-0.1,1.0,-1.0)
             @test !isnan(cf(d,t))
@@ -165,4 +172,54 @@ for c in ["discrete",
     jsonfile = joinpath(@__DIR__, "ref", "$(c)_test.ref.json")
     verify_and_test_drive(jsonfile, ARGS, 10^6)
     println()
+end
+
+# #1358
+@testset "Poisson quantile" begin
+    d = Poisson(1)
+    @test quantile(d, 0.2) isa Int
+    @test cquantile(d, 0.4) isa Int
+    @test invlogcdf(d, log(0.2)) isa Int
+    @test invlogccdf(d, log(0.6)) isa Int
+end
+
+@testset "Uniform type inference" begin
+    for T in (Int, Float32)
+        d = Uniform{T}(T(2), T(3))
+        FT = float(T)
+        XFT = promote_type(FT, Float64)
+
+        @test @inferred(pdf(d, 1.5)) === zero(FT)
+        @test @inferred(pdf(d, 2.5)) === one(FT)
+        @test @inferred(pdf(d, 3.5)) === zero(FT)
+
+        @test @inferred(logpdf(d, 1.5)) === FT(-Inf)
+        @test @inferred(logpdf(d, 2.5)) === -zero(FT) # negative zero
+        @test @inferred(logpdf(d, 3.5)) === FT(-Inf)
+
+        @test @inferred(cdf(d, 1.5)) === zero(XFT)
+        @test @inferred(cdf(d, 2.5)) === XFT(1//2)
+        @test @inferred(cdf(d, 3.5)) === one(XFT)
+
+        @test @inferred(ccdf(d, 1.5)) === one(XFT)
+        @test @inferred(ccdf(d, 2.5)) === XFT(1//2)
+        @test @inferred(ccdf(d, 3.5)) === zero(XFT)
+    end
+end
+
+# #1471
+@testset "InverseGamma constructor (#1471)" begin
+    @test_throws DomainError InverseGamma(-1, 2)
+    InverseGamma(-1, 2; check_args=false) # no error
+end
+
+# #1479
+@testset "Inner and outer constructors" begin
+    @test_throws DomainError InverseGaussian(0.0, 0.0)
+    @test InverseGaussian(0.0, 0.0; check_args=false) isa InverseGaussian{Float64}
+    @test InverseGaussian{Float64}(0.0, 0.0) isa InverseGaussian{Float64}
+
+    @test_throws DomainError Levy(0.0, 0.0)
+    @test Levy(0.0, 0.0; check_args=false) isa Levy{Float64}
+    @test Levy{Float64}(0.0, 0.0) isa Levy{Float64}
 end

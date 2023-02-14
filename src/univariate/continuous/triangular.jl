@@ -34,23 +34,24 @@ struct TriangularDist{T<:Real} <: ContinuousUnivariateDistribution
     TriangularDist{T}(a::T, b::T, c::T) where {T <: Real} = new{T}(a, b, c)
 end
 
-function TriangularDist(a::T, b::T, c::T; check_args=true) where {T <: Real}
-    check_args && @check_args(TriangularDist, a <= c <= b)
+function TriangularDist(a::T, b::T, c::T; check_args::Bool=true) where {T <: Real}
+    @check_args TriangularDist (a <= c <= b)
     return TriangularDist{T}(a, b, c)
 end
 
-TriangularDist(a::T, b::T) where {T <: Real} = TriangularDist(a, b, middle(a, b))
+TriangularDist(a::Real, b::Real, c::Real; check_args::Bool=true) = TriangularDist(promote(a, b, c)...; check_args=check_args)
+function TriangularDist(a::Integer, b::Integer, c::Integer; check_args::Bool=true)
+    TriangularDist(float(a), float(b), float(c); check_args=check_args)
+end
 
-TriangularDist(a::Real, b::Real, c::Real) = TriangularDist(promote(a, b, c)...)
-TriangularDist(a::Integer, b::Integer, c::Integer) = TriangularDist(float(a), float(b), float(c))
-TriangularDist(a::Real, b::Real) = TriangularDist(promote(a, b)...)
-TriangularDist(a::Integer, b::Integer) = TriangularDist(float(a), float(b))
+TriangularDist(a::Real, b::Real) = TriangularDist(a, b, middle(a, b); check_args=false)
 
 @distr_support TriangularDist d.a d.b
 
 #### Conversions
 convert(::Type{TriangularDist{T}}, a::Real, b::Real, c::Real) where {T<:Real} = TriangularDist(T(a), T(b), T(c))
-convert(::Type{TriangularDist{T}}, d::TriangularDist{S}) where {T<:Real, S<:Real} = TriangularDist(T(d.a), T(d.b), T(d.c), check_args=false)
+Base.convert(::Type{TriangularDist{T}}, d::TriangularDist) where {T<:Real} = TriangularDist{T}(T(d.a), T(d.b), T(d.c))
+Base.convert(::Type{TriangularDist{T}}, d::TriangularDist{T}) where {T<:Real} = d
 
 #### Parameters
 
@@ -90,21 +91,23 @@ entropy(d::TriangularDist{T}) where {T<:Real} = one(T)/2 + log((d.b - d.a) / 2)
 
 #### Evaluation
 
-function pdf(d::TriangularDist{T}, x::Real) where T<:Real
-    (a, b, c) = params(d)
-    x <= a ? zero(T) :
-    x <  c ? 2 * (x - a) / ((b - a) * (c - a)) :
-    x == c ? 2 / (b - a) :
-    x <= b ? 2 * (b - x) / ((b - a) * (b - c)) : zero(T)
+function pdf(d::TriangularDist, x::Real)
+    a, b, c = params(d)
+    return if x < c
+        2 * max(x - a, 0) / ((b - a) * (c - a))
+    else
+        2 * max(b - x, 0) / ((b - a) * (b - c))
+    end
 end
 logpdf(d::TriangularDist, x::Real) = log(pdf(d, x))
 
-function cdf(d::TriangularDist{T}, x::Real) where T<:Real
-    (a, b, c) = params(d)
-    x <= a ? zero(T) :
-    x <  c ? (x - a)^2 / ((b - a) * (c - a)) :
-    x == c ? (c - a) / (b - a) :
-    x <= b ? 1 - (b - x)^2 / ((b - a) * (b - c)) : one(T)
+function cdf(d::TriangularDist, x::Real)
+    a, b, c = params(d)
+    return if x < c
+        max(x - a, 0)^2 / ((b - a) * (c - a))
+    else
+        1 - max(b - x, 0)^2 / ((b - a) * (b - c))
+    end
 end
 
 function quantile(d::TriangularDist, p::Real)

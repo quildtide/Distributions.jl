@@ -8,9 +8,9 @@ P(X = k) = {n \\choose k} B(k + \\alpha, n - k + \\beta) / B(\\alpha, \\beta),  
 ```
 
 ```julia
-BetaBinomial(n, a, b)      # BetaBinomial distribution with n trials and shape parameters a, b
+BetaBinomial(n, α, β)      # BetaBinomial distribution with n trials and shape parameters α, β
 
-params(d)       # Get the parameters, i.e. (n, a, b)
+params(d)       # Get the parameters, i.e. (n, α, β)
 ntrials(d)      # Get the number of trials, i.e. n
 ```
 
@@ -26,13 +26,13 @@ struct BetaBinomial{T<:Real} <: DiscreteUnivariateDistribution
     BetaBinomial{T}(n::Integer, α::T, β::T) where {T <: Real} = new{T}(n, α, β)
 end
 
-function BetaBinomial(n::Integer, α::T, β::T; check_args=true) where {T <: Real}
-    check_args && @check_args(BetaBinomial, n >= zero(n) && α >= zero(α) && β >= zero(β))
+function BetaBinomial(n::Integer, α::T, β::T; check_args::Bool=true) where {T <: Real}
+    @check_args BetaBinomial (n, n >= zero(n)) (α, α > zero(α)) (β, β > zero(β))
     return BetaBinomial{T}(n, α, β)
 end
 
-BetaBinomial(n::Integer, α::Real, β::Real) = BetaBinomial(n, promote(α, β)...)
-BetaBinomial(n::Integer, α::Integer, β::Integer) = BetaBinomial(n, float(α), float(β))
+BetaBinomial(n::Integer, α::Real, β::Real; check_args::Bool=true) = BetaBinomial(n, promote(α, β)...; check_args=check_args)
+BetaBinomial(n::Integer, α::Integer, β::Integer; check_args::Bool=true) = BetaBinomial(n, float(α), float(β); check_args=check_args)
 
 @distr_support BetaBinomial 0 d.n
 
@@ -40,9 +40,10 @@ BetaBinomial(n::Integer, α::Integer, β::Integer) = BetaBinomial(n, float(α), 
 function convert(::Type{BetaBinomial{T}}, n::Int, α::S, β::S) where {T <: Real, S <: Real}
     BetaBinomial(n, T(α), T(β))
 end
-function convert(::Type{BetaBinomial{T}}, d::BetaBinomial{S}) where {T <: Real, S <: Real}
-    BetaBinomial(d.n, T(d.α), T(d.β), check_args=false)
+function Base.convert(::Type{BetaBinomial{T}}, d::BetaBinomial) where {T<:Real}
+    BetaBinomial{T}(d.n, T(d.α), T(d.β))
 end
+Base.convert(::Type{BetaBinomial{T}}, d::BetaBinomial{T}) where {T<:Real} = d
 
 #### Parameters
 
@@ -90,6 +91,16 @@ function logpdf(d::BetaBinomial, k::Real)
     logdenom = logbeta(α, β)
     result = logbinom + lognum - logdenom
     return _insupport ? result : oftype(result, -Inf)
+end
+
+# sum values of the probability mass function
+cdf(d::BetaBinomial, k::Int) = integerunitrange_cdf(d, k)
+
+for f in (:ccdf, :logcdf, :logccdf)
+    @eval begin
+        $f(d::BetaBinomial, k::Real) = $(Symbol(f, :_int))(d, k)
+        $f(d::BetaBinomial, k::Int) = $(Symbol(:integerunitrange_, f))(d, k)
+    end
 end
 
 entropy(d::BetaBinomial) = entropy(Categorical(pdf.(Ref(d),support(d))))

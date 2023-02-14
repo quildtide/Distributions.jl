@@ -24,11 +24,13 @@ struct Hypergeometric <: DiscreteUnivariateDistribution
     nf::Int     # number of failures in population
     n::Int      # sample size
 
-    function Hypergeometric(ns::Real, nf::Real, n::Real; check_args=true)
-        if check_args
-            @check_args(Hypergeometric, ns >= zero(ns) && nf >= zero(nf))
-            @check_args(Hypergeometric, zero(n) <= n <= ns + nf)
-        end
+    function Hypergeometric(ns::Real, nf::Real, n::Real; check_args::Bool=true)
+        @check_args(
+            Hypergeometric,
+            (ns, ns >= zero(ns)),
+            (nf, nf >= zero(nf)),
+            zero(n) <= n <= ns + nf,
+        )
         new(ns, nf, n)
     end
 end
@@ -79,18 +81,6 @@ entropy(d::Hypergeometric) = entropy(pdf.(Ref(d), support(d)))
 
 @_delegate_statsfuns Hypergeometric hyper ns nf n
 
-function pdf(d::Hypergeometric, x::Real)
-    _insupport = insupport(d, x)
-    s = pdf(d, _insupport ? round(Int, x) : 0)
-    return _insupport ? s : zero(s)
-end
-
-function logpdf(d::Hypergeometric, x::Real)
-    _insupport = insupport(d, x)
-    s = logpdf(d, _insupport ? round(Int, x) : 0)
-    return _insupport ? s : oftype(s, -Inf)
-end
-
 ## sampling
 
 # TODO: remove RFunctions dependency. Implement:
@@ -101,22 +91,3 @@ end
 @rand_rdist(Hypergeometric)
 rand(d::Hypergeometric) =
     convert(Int, StatsFuns.RFunctions.hyperrand(d.ns, d.nf, d.n))
-
-struct RecursiveHypergeomProbEvaluator <: RecursiveProbabilityEvaluator
-    ns::Float64
-    nf::Float64
-    n::Float64
-end
-
-RecursiveHypergeomProbEvaluator(d::Hypergeometric) = RecursiveHypergeomProbEvaluator(d.ns, d.nf, d.n)
-
-nextpdf(s::RecursiveHypergeomProbEvaluator, p::Float64, x::Integer) =
-    ((s.ns - x + 1) / x) * ((s.n - x + 1) / (s.nf - s.n + x)) * p
-
-Base.broadcast!(::typeof(pdf), r::AbstractArray, d::Hypergeometric, rgn::UnitRange) =
-    _pdf!(r, d, rgn, RecursiveHypergeomProbEvaluator(d))
-
-function Base.broadcast(::typeof(pdf), d::Hypergeometric, X::UnitRange)
-    r = similar(Array{promote_type(partype(d), eltype(X))}, axes(X))
-    r .= pdf.(Ref(d),X)
-end

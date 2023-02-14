@@ -1,21 +1,21 @@
 """
     Gumbel(μ, θ)
 
-The *Gumbel distribution*  with location `μ` and scale `θ` has probability density function
+The *Gumbel (maxima) distribution*  with location `μ` and scale `θ` has probability density function
 
 ```math
-f(x; \\mu, \\theta) = \\frac{1}{\\theta} e^{-(z + e^-z)},
+f(x; \\mu, \\theta) = \\frac{1}{\\theta} e^{-(z + e^{-z})},
 \\quad \\text{ with } z = \\frac{x - \\mu}{\\theta}
 ```
 
 ```julia
 Gumbel()            # Gumbel distribution with zero location and unit scale, i.e. Gumbel(0, 1)
-Gumbel(u)           # Gumbel distribution with location u and unit scale, i.e. Gumbel(u, 1)
-Gumbel(u, b)        # Gumbel distribution with location u and scale b
+Gumbel(μ)           # Gumbel distribution with location μ and unit scale, i.e. Gumbel(μ, 1)
+Gumbel(μ, θ)        # Gumbel distribution with location μ and scale θ
 
-params(d)        # Get the parameters, i.e. (u, b)
-location(d)      # Get the location parameter, i.e. u
-scale(d)         # Get the scale parameter, i.e. b
+params(d)        # Get the parameters, i.e. (μ, θ)
+location(d)      # Get the location parameter, i.e. μ
+scale(d)         # Get the scale parameter, i.e. θ
 ```
 
 External links
@@ -28,24 +28,26 @@ struct Gumbel{T<:Real} <: ContinuousUnivariateDistribution
     Gumbel{T}(µ::T, θ::T) where {T} = new{T}(µ, θ)
 end
 
-function Gumbel(μ::T, θ::T; check_args=true) where {T <: Real}
-    check_args && @check_args(Gumbel, θ > zero(θ))
+function Gumbel(μ::T, θ::T; check_args::Bool=true) where {T <: Real}
+    @check_args Gumbel (θ, θ > zero(θ))
     return Gumbel{T}(μ, θ)
 end
 
-Gumbel(μ::Real, θ::Real) = Gumbel(promote(μ, θ)...)
-Gumbel(μ::Integer, θ::Integer) = Gumbel(float(μ), float(θ))
-Gumbel(μ::T) where {T <: Real} = Gumbel(μ, one(T))
-Gumbel() = Gumbel(0.0, 1.0, check_args=false)
+Gumbel(μ::Real, θ::Real; check_args::Bool=true) = Gumbel(promote(μ, θ)...; check_args=check_args)
+Gumbel(μ::Integer, θ::Integer; check_args::Bool=true) = Gumbel(float(μ), float(θ); check_args=check_args)
+Gumbel(μ::Real=0.0) = Gumbel(μ, one(μ); check_args=false)
 
 @distr_support Gumbel -Inf Inf
 
 const DoubleExponential = Gumbel
 
+Base.eltype(::Type{Gumbel{T}}) where {T} = T
+
 #### Conversions
 
 convert(::Type{Gumbel{T}}, μ::S, θ::S) where {T <: Real, S <: Real} = Gumbel(T(μ), T(θ))
-convert(::Type{Gumbel{T}}, d::Gumbel{S}) where {T <: Real, S <: Real} = Gumbel(T(d.μ), T(d.θ), check_args=false)
+Base.convert(::Type{Gumbel{T}}, d::Gumbel) where {T<:Real} = Gumbel{T}(T(d.μ), T(d.θ))
+Base.convert(::Type{Gumbel{T}}, d::Gumbel{T}) where {T<:Real} = d
 
 #### Parameters
 
@@ -54,6 +56,14 @@ scale(d::Gumbel) = d.θ
 params(d::Gumbel) = (d.μ, d.θ)
 partype(::Gumbel{T}) where {T} = T
 
+function Base.rand(rng::Random.AbstractRNG, d::Gumbel)
+    return d.μ - d.θ * log(randexp(rng, float(eltype(d))))
+end
+function _rand!(rng::Random.AbstractRNG, d::Gumbel, x::AbstractArray{<:Real})
+    randexp!(rng, x)
+    x .= d.μ .- d.θ .* log.(x)
+    return x
+end
 
 #### Statistics
 

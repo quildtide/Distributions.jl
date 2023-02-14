@@ -26,20 +26,20 @@ External links:
 """
 const Categorical{P<:Real,Ps<:AbstractVector{P}} = DiscreteNonParametric{Int,P,Base.OneTo{Int},Ps}
 
-function Categorical{P,Ps}(p::Ps; check_args=true) where {P<:Real, Ps<:AbstractVector{P}}
-    check_args && @check_args(Categorical, isprobvec(p))
-    return Categorical{P,Ps}(Base.OneTo(length(p)), p, check_args=check_args)
+function Categorical{P,Ps}(p::Ps; check_args::Bool=true) where {P<:Real, Ps<:AbstractVector{P}}
+    @check_args Categorical (p, isprobvec(p), "vector p is not a probability vector")
+    return Categorical{P,Ps}(Base.OneTo(length(p)), p; check_args=check_args)
 end
 
-Categorical(p::Ps; check_args=true) where {P<:Real, Ps<:AbstractVector{P}} =
-    Categorical{P,Ps}(p, check_args=check_args)
+Categorical(p::AbstractVector{P}; check_args::Bool=true) where {P<:Real} =
+    Categorical{P,typeof(p)}(p; check_args=check_args)
 
-function Categorical(k::Integer; check_args=true)
-    check_args && @check_args(Categorical, k >= 1)
-    return Categorical{Float64,Vector{Float64}}(Base.OneTo(k), fill(1/k, k), check_args=check_args)
+function Categorical(k::Integer; check_args::Bool=true)
+    @check_args Categorical (k, k >= 1, "at least one category is required")
+    return Categorical{Float64,Vector{Float64}}(Base.OneTo(k), fill(1/k, k); check_args=false)
 end
 
-Categorical(probabilities::Real...; check_args=true) = Categorical([probabilities...]; check_args=check_args)
+Categorical(probabilities::Real...; check_args::Bool=true) = Categorical([probabilities...]; check_args=check_args)
 
 ### Conversions
 
@@ -68,17 +68,12 @@ end
 
 ### Evaluation
 
-function cdf(d::Categorical{T}, x::Int) where T<:Real
-    k = ncategories(d)
-    p = probs(d)
-    x < 1 && return zero(T)
-    x >= k && return one(T)
-    c = p[1]
-    for i = 2:x
-        @inbounds c += p[i]
-    end
-    return c
-end
+# the fallbacks are overridden by `DiscreteNonParameteric`
+cdf(d::Categorical, x::Real) = cdf_int(d, x)
+ccdf(d::Categorical, x::Real) = ccdf_int(d, x)
+
+cdf(d::Categorical, x::Int) = integerunitrange_cdf(d, x)
+ccdf(d::Categorical, x::Int) = integerunitrange_ccdf(d, x)
 
 function pdf(d::Categorical, x::Real)
     ps = probs(d)
@@ -158,15 +153,15 @@ suffstats(::Type{<:Categorical}, data::CategoricalData, w::AbstractArray{Float64
 # Model fitting
 
 function fit_mle(::Type{<:Categorical}, ss::CategoricalStats)
-    Categorical(pnormalize!(ss.h))
+    Categorical(normalize!(ss.h, 1))
 end
 
 function fit_mle(::Type{<:Categorical}, k::Integer, x::AbstractArray{T}) where T<:Integer
-    Categorical(pnormalize!(add_categorical_counts!(zeros(k), x)), check_args=false)
+    Categorical(normalize!(add_categorical_counts!(zeros(k), x), 1), check_args=false)
 end
 
 function fit_mle(::Type{<:Categorical}, k::Integer, x::AbstractArray{T}, w::AbstractArray{Float64}) where T<:Integer
-    Categorical(pnormalize!(add_categorical_counts!(zeros(k), x, w)), check_args=false)
+    Categorical(normalize!(add_categorical_counts!(zeros(k), x, w), 1), check_args=false)
 end
 
 fit_mle(::Type{<:Categorical}, data::CategoricalData) = fit_mle(Categorical, data...)

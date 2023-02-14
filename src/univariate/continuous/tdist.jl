@@ -4,15 +4,15 @@
 The *Students T distribution* with `ν` degrees of freedom has probability density function
 
 ```math
-f(x; d) = \\frac{1}{\\sqrt{d} B(1/2, d/2)}
-\\left( 1 + \\frac{x^2}{d} \\right)^{-\\frac{d + 1}{2}}
+f(x; \\nu) = \\frac{1}{\\sqrt{\\nu} B(1/2, \\nu/2)}
+\\left( 1 + \\frac{x^2}{\\nu} \\right)^{-\\frac{\\nu + 1}{2}}
 ```
 
 ```julia
-TDist(d)      # t-distribution with d degrees of freedom
+TDist(d)      # t-distribution with ν degrees of freedom
 
-params(d)     # Get the parameters, i.e. (d,)
-dof(d)        # Get the degrees of freedom, i.e. d
+params(d)     # Get the parameters, i.e. (ν,)
+dof(d)        # Get the degrees of freedom, i.e. ν
 ```
 
 External links
@@ -25,18 +25,19 @@ struct TDist{T<:Real} <: ContinuousUnivariateDistribution
     TDist{T}(ν::T) where {T <: Real} = new{T}(ν)
 end
 
-function TDist(ν::T; check_args=true) where {T <: Real}
-    check_args && @check_args(TDist, ν > zero(ν))
-    return TDist{T}(ν)
+function TDist(ν::Real; check_args::Bool=true)
+    @check_args TDist (ν, ν > zero(ν))
+    return TDist{typeof(ν)}(ν)
 end
 
-TDist(ν::Integer) = TDist(float(ν))
+TDist(ν::Integer; check_args::Bool=true) = TDist(float(ν); check_args=check_args)
 
 @distr_support TDist -Inf Inf
 
 #### Conversions
 convert(::Type{TDist{T}}, ν::Real) where {T<:Real} = TDist(T(ν))
-convert(::Type{TDist{T}}, d::TDist{S}) where {T<:Real, S<:Real} = TDist(T(d.ν), check_args=false)
+Base.convert(::Type{TDist{T}}, d::TDist) where {T<:Real} = TDist{T}(T(d.ν))
+Base.convert(::Type{TDist{T}}, d::TDist{T}) where {T<:Real} = d
 
 #### Parameters
 
@@ -78,7 +79,11 @@ end
 
 @_delegate_statsfuns TDist tdist ν
 
-rand(rng::AbstractRNG, d::TDist) = randn(rng) / ( isinf(d.ν) ? 1 : sqrt(rand(rng, Chisq(d.ν))/d.ν) )
+function rand(rng::AbstractRNG, d::TDist)
+    ν = d.ν
+    z = sqrt(rand(rng, Chisq{typeof(ν)}(ν)) / ν)
+    return randn(rng) / (isinf(ν) ? one(z) : z)
+end
 
 function cf(d::TDist{T}, t::Real) where T <: Real
     isinf(d.ν) && return cf(Normal(zero(T), one(T)), t)

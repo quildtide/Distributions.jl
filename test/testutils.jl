@@ -5,6 +5,7 @@ using Random
 using Printf: @printf
 using Test: @test
 import FiniteDifferences
+import ForwardDiff
 
 # to workaround issues of Base.linspace
 function _linspace(a::Float64, b::Float64, n::Int)
@@ -35,6 +36,7 @@ function test_distr(distr::DiscreteUnivariateDistribution, n::Int;
     test_support(distr, vs)
     test_evaluation(distr, vs, testquan)
     test_range_evaluation(distr)
+    test_nonfinite(distr)
 
     test_stats(distr, vs)
     test_samples(distr, n)
@@ -42,6 +44,25 @@ function test_distr(distr::DiscreteUnivariateDistribution, n::Int;
     test_params(distr)
 end
 
+function test_cgf(dist, ts)
+    κ₀ = cgf(dist, 0)
+    @test κ₀ ≈ 0 atol=2*eps(one(float(κ₀)))
+    d(f) = Base.Fix1(ForwardDiff.derivative, f)
+    κ₁ = d(Base.Fix1(cgf, dist))(0)
+    @test κ₁ ≈ mean(dist)
+    if VERSION >= v"1.4"
+        κ₂ = d(d(Base.Fix1(cgf, dist)))(0)
+        @test κ₂ ≈ var(dist)
+    end
+    for t in ts
+        val = @inferred cgf(dist, t)
+        @test isfinite(val)
+        if isfinite(mgf(dist, t))
+            rtol = eps(float(one(t)))^(1/2)
+            @test (exp∘cgf)(dist, t) ≈ mgf(dist, t) rtol=rtol
+        end
+    end
+end
 
 # testing the implementation of a continuous univariate distribution
 #
@@ -52,6 +73,7 @@ function test_distr(distr::ContinuousUnivariateDistribution, n::Int;
 
     test_support(distr, vs)
     test_evaluation(distr, vs, testquan)
+    test_nonfinite(distr)
 
     if isa(distr, StudentizedRange)
         n = 2000 # must use fewer values due to performance
@@ -462,6 +484,27 @@ function test_evaluation(d::ContinuousUnivariateDistribution, vs::AbstractVector
     @test logccdf.(Ref(d), vs) ≈ lcc
 end
 
+function test_nonfinite(distr::UnivariateDistribution)
+    # non-finite bounds
+    @test iszero(@inferred(cdf(distr, -Inf)))
+    @test isone(@inferred(cdf(distr, Inf)))
+    @test isone(@inferred(ccdf(distr, -Inf)))
+    @test iszero(@inferred(ccdf(distr, Inf)))
+    @test @inferred(logcdf(distr, -Inf)) == -Inf
+    @test iszero(@inferred(logcdf(distr, Inf)))
+    @test iszero(@inferred(logccdf(distr, -Inf)))
+    @test @inferred(logccdf(distr, Inf)) == -Inf
+
+    # NaN
+    for f in (cdf, ccdf, logcdf, logccdf)
+        if distr isa NoncentralT
+            # broken in StatsFuns/R
+            @test_broken isnan(f(distr, NaN))
+        else
+            @test isnan(f(distr, NaN))
+        end
+    end
+end
 
 #### Testing statistics methods
 
@@ -556,7 +599,7 @@ function test_params(d::Truncated)
     d_unt = d.untruncated
     D = typeof(d_unt)
     pars = params(d_unt)
-    d_new = Truncated(D(pars...), d.lower, d.upper)
+    d_new = truncated(D(pars...), d.lower, d.upper)
     @test d_new == d
     @test d == deepcopy(d)
 end
@@ -565,5 +608,50 @@ end
 function fdm(f, at)
     map(1:length(at)) do i
         FiniteDifferences.central_fdm(5, 1)(x -> f([at[1:i-1]; x; at[i+1:end]]), at[i])
+    end
+end
+
+# Equivalent to `ExactOneSampleKSTest` in HypothesisTests.jl
+# We implement it here to avoid a circular dependency on HypothesisTests
+# that causes test failures when preparing a breaking release of Distributions
+function pvalue_kolmogorovsmirnoff(x::AbstractVector, d::UnivariateDistribution)
+    # compute maximum absolute deviation from the empirical cdf
+    n = length(x)
+    cdfs = sort!(map(Base.Fix1(cdf, d), x))
+    dmax = maximum(zip(cdfs, (0:(n-1))/n, (1:n)/n)) do (cdf, lower, upper)
+        return max(cdf - lower, upper - cdf)
+    end
+
+    # compute asymptotic p-value (see `KSDist`)
+    return ccdf(KSDist(n), dmax)
+end
+
+function test_affine_transformations(::Type{T}, params...) where {T<:UnivariateDistribution}
+    @testset "affine tranformations ($T)" begin
+        # distribution
+        d = T(params...)
+
+        # random shift and scale
+        c = randn()
+
+        # addition
+        for shift_d in (@inferred(d + c), @inferred(c + d))
+            @test shift_d isa T
+            @test location(shift_d) ≈ location(d) + c
+            @test scale(shift_d) ≈ scale(d)
+        end
+
+        # multiplication (negative and positive values)
+        for s in (-c, c)
+            for scale_d in (@inferred(s * d), @inferred(d * s), @inferred(d / inv(s)))
+                @test scale_d isa T
+                if d isa Uniform
+                    @test location(scale_d) ≈ (s > 0 ? s * minimum(d) : s * maximum(d))
+                else
+                    @test location(scale_d) ≈ s * location(d)
+                end
+                @test scale(scale_d) ≈ abs(s) * scale(d)
+            end
+        end
     end
 end
