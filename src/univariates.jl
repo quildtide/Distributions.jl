@@ -6,10 +6,11 @@ struct RealInterval{T<:Real}
 end
 
 RealInterval(lb::Real, ub::Real) = RealInterval(promote(lb, ub)...)
-minimum(r::RealInterval) = r.lb
-maximum(r::RealInterval) = r.ub
-extrema(r::RealInterval) = (r.lb, r.ub)
-in(x::Real, r::RealInterval) = r.lb <= x <= r.ub
+
+Base.minimum(r::RealInterval) = r.lb
+Base.maximum(r::RealInterval) = r.ub
+Base.extrema(r::RealInterval) = (r.lb, r.ub)
+Base.in(x::Real, r::RealInterval) = r.lb <= x <= r.ub
 
 isbounded(d::Union{D,Type{D}}) where {D<:UnivariateDistribution} = isupperbounded(d) && islowerbounded(d)
 
@@ -124,8 +125,8 @@ macro distr_support(D, lb, ub)
 
     # overall
     esc(quote
-        minimum($(paramdecl)) = $lb
-        maximum($(paramdecl)) = $ub
+        Base.minimum($(paramdecl)) = $lb
+        Base.maximum($(paramdecl)) = $ub
     end)
 end
 
@@ -310,7 +311,7 @@ See also: [`logpdf`](@ref).
 pdf(d::UnivariateDistribution, x::Real) = exp(logpdf(d, x))
 
 # extract value from array of zero dimension
-_pdf(d::UnivariateDistribution, x::AbstractArray{<:Real,0}) = pdf(d, first(x))
+pdf(d::UnivariateDistribution, x::AbstractArray{<:Real,0}) = pdf(d, first(x))
 
 """
     logpdf(d::UnivariateDistribution, x::Real)
@@ -322,7 +323,7 @@ See also: [`pdf`](@ref).
 logpdf(d::UnivariateDistribution, x::Real)
 
 # extract value from array of zero dimension
-_logpdf(d::UnivariateDistribution, x::AbstractArray{<:Real,0}) = logpdf(d, first(x))
+logpdf(d::UnivariateDistribution, x::AbstractArray{<:Real,0}) = logpdf(d, first(x))
 
 # loglikelihood for `Real`
 Base.@propagate_inbounds loglikelihood(d::UnivariateDistribution, x::Real) = logpdf(d, x)
@@ -451,7 +452,7 @@ function _pdf_fill_outside!(r::AbstractArray, d::DiscreteUnivariateDistribution,
     return vl, vr, vfirst, vlast
 end
 
-function _pdf!(r::AbstractArray, d::DiscreteUnivariateDistribution, X::UnitRange)
+function _pdf!(r::AbstractArray{<:Real}, d::DiscreteUnivariateDistribution, X::UnitRange)
     vl,vr, vfirst, vlast = _pdf_fill_outside!(r, d, X)
 
     # fill central part: with non-zero pdf
@@ -687,11 +688,14 @@ const continuous_distributions = [
     "gumbel",
     "inversegamma",
     "inversegaussian",
+    "johnsonsu",
     "kolmogorov",
     "ksdist",
     "ksonesided",
+    "kumaraswamy",
     "laplace",
     "levy",
+    "lindley",
     "logistic",
     "noncentralbeta",
     "noncentralchisq",
@@ -728,3 +732,5 @@ end
 for dname in continuous_distributions
     include(joinpath("univariate", "continuous", "$(dname).jl"))
 end
+
+include(joinpath("univariate", "orderstatistic.jl"))

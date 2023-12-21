@@ -105,7 +105,7 @@ function test_samples(s::Sampleable{Univariate, Discrete},      # the sampleable
 
     # The basic idea
     # ------------------
-    #   Generate n samples, and count the occurences of each value within a reasonable range.
+    #   Generate n samples, and count the occurrences of each value within a reasonable range.
     #   For each distinct value, it computes an confidence interval of the counts
     #   and checks whether the count is within this interval.
     #
@@ -143,9 +143,20 @@ function test_samples(s::Sampleable{Univariate, Discrete},      # the sampleable
         @assert cub[i] >= clb[i]
     end
 
-    # generate samples using RNG passed or global RNG
-    samples = ismissing(rng) ? rand(s, n) : rand(rng, s, n)
-    @assert length(samples) == n
+    # generate samples using RNG passed or default RNG
+    # we also check reproducibility
+    if rng === missing
+        Random.seed!(1234)
+        samples = rand(s, n)
+        Random.seed!(1234)
+        samples2 = rand(s, n)
+    else
+        rng2 = deepcopy(rng)
+        samples = rand(rng, s, n)
+        samples2 = rand(rng2, s, n)
+    end
+    @test length(samples) == n
+    @test samples2 == samples
 
     # scan samples and get counts
     cnts = zeros(Int, m)
@@ -232,9 +243,20 @@ function test_samples(s::Sampleable{Univariate, Continuous},    # the sampleable
         @assert cub[i] >= clb[i]
     end
 
-    # generate samples
-    samples = ismissing(rng) ? rand(s, n) : rand(rng, s, n)
-    @assert length(samples) == n
+    # generate samples using RNG passed or default RNG
+    # we also check reproducibility
+    if rng === missing
+        Random.seed!(1234)
+        samples = rand(s, n)
+        Random.seed!(1234)
+        samples2 = rand(s, n)
+    else
+        rng2 = deepcopy(rng)
+        samples = rand(rng, s, n)
+        samples2 = rand(rng2, s, n)
+    end
+    @test length(samples) == n
+    @test samples2 == samples
 
     if isa(distr, StudentizedRange)
         samples[isnan.(samples)] .= 0.0 # Underlying implementation in Rmath can't handle very low values.
@@ -319,13 +341,29 @@ function test_support(d::UnivariateDistribution, vs::AbstractVector)
 
     @test isbounded(d) == (isupperbounded(d) && islowerbounded(d))
 
-    if isbounded(d)
-        if isa(d, DiscreteUnivariateDistribution)
-            s = support(d)
-            @test isa(s, AbstractUnitRange)
-            @test first(s) == minimum(d)
-            @test last(s) == maximum(d)
+    # Test the `Base.in` or `∈` operator
+    # The `support` function is buggy for unbounded `DiscreteUnivariateDistribution`s
+    if isbounded(d) || isa(d, ContinuousUnivariateDistribution)
+        s = support(d)
+        for v in vs
+            @test v ∈ s
         end
+
+        if islowerbounded(d)
+            @test minimum(d) ∈ s
+            @test (minimum(d) - 1) ∉ s
+        end
+        if isupperbounded(d)
+            @test maximum(d) ∈ s
+            @test (maximum(d) + 1) ∉ s
+        end
+    end
+
+    if isbounded(d) && isa(d, DiscreteUnivariateDistribution)
+        s = support(d)
+        @test isa(s, AbstractUnitRange)
+        @test first(s) == minimum(d)
+        @test last(s) == maximum(d)
     end
 end
 
@@ -627,7 +665,7 @@ function pvalue_kolmogorovsmirnoff(x::AbstractVector, d::UnivariateDistribution)
 end
 
 function test_affine_transformations(::Type{T}, params...) where {T<:UnivariateDistribution}
-    @testset "affine tranformations ($T)" begin
+    @testset "affine transformations ($T)" begin
         # distribution
         d = T(params...)
 
