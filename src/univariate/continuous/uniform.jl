@@ -157,7 +157,7 @@ function rand(rng::AbstractRNG, d::Uniform, dims::Dims)
 end
 
 _rand!(rng::AbstractRNG, d::Uniform, A::AbstractArray{<:Real}) =
-    A .= quantile.(d, rand!(rng, A))
+    A .= Base.Fix1(quantile, d).(rand!(rng, A))
 
 
 #### Fitting
